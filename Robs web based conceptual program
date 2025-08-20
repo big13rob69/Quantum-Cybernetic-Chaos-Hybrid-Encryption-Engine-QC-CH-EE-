@@ -1,0 +1,326 @@
+import React, { useState, useEffect } from 'react';
+import {
+  Lock,
+  Key,
+  Bot,
+  Shield,
+  CheckCircle,
+  XCircle,
+  AlertTriangle,
+  Zap
+} from 'lucide-react';
+
+// This component provides a styled message box for alerts and status updates.
+const MessageBox = ({ type, message }) => {
+  const bgColor = type === 'success' ? 'bg-green-100' :
+                  type === 'error' ? 'bg-red-100' :
+                  'bg-blue-100';
+  const textColor = type === 'success' ? 'text-green-700' :
+                    type === 'error' ? 'text-red-700' :
+                    'text-blue-700';
+  const icon = type === 'success' ? <CheckCircle className="h-5 w-5 mr-2" /> :
+               type === 'error' ? <XCircle className="h-5 w-5 mr-2" /> :
+               <AlertTriangle className="h-5 w-5 mr-2" />;
+
+  return (
+    <div className={`p-4 rounded-lg flex items-center ${bgColor} ${textColor}`}>
+      {icon}
+      <span>{message}</span>
+    </div>
+  );
+};
+
+// The main React component for the QC-CH-EE encryption model.
+const App = () => {
+  // State variables to manage the application's UI and data.
+  const [plaintext, setPlaintext] = useState('');
+  const [ciphertext, setCiphertext] = useState('');
+  const [encryptionKey, setEncryptionKey] = useState(null);
+  const [selectedKEM, setSelectedKEM] = useState('');
+  const [selectedSignature, setSelectedSignature] = useState('');
+  const [message, setMessage] = useState('');
+  const [messageType, setMessageType] = useState('info');
+  const [loading, setLoading] = useState(false);
+
+  // Constants for simulating the key's "self-destruct" mechanism.
+  const KEY_LIFETIME_SECONDS = 30;
+  const CHAOS_MULTIPLIER = 3.999; // A value close to 4 for chaotic behavior in the logistic map.
+
+  // The Gemini API key, provided by the runtime.
+  const apiKey = ""; 
+
+  // Function to simulate the "chaotic attractor" for key generation.
+  // This is a simplified implementation of the logistic map to create a pseudo-random sequence.
+  // In a real system, this would be much more complex and ideally incorporate quantum noise.
+  const generateChaoticKey = async () => {
+    // Use the browser's native crypto API for a cryptographically secure seed.
+    const seedArray = new Uint32Array(1);
+    window.crypto.getRandomValues(seedArray);
+    
+    // Normalize the seed to be between 0 and 1, as required by the logistic map.
+    let x = seedArray[0] / 0xFFFFFFFF;
+
+    // Use a fixed number of iterations to generate the key material.
+    // The iterations are what make the sequence "chaotic" and sensitive to the initial seed.
+    let keyMaterial = '';
+    for (let i = 0; i < 64; i++) { // Generate 64 "bytes" of key material.
+      x = CHAOS_MULTIPLIER * x * (1 - x);
+      keyMaterial += String.fromCharCode(Math.floor(x * 256));
+    }
+    
+    // Convert the key material to a format suitable for the Web Crypto API.
+    const encoder = new TextEncoder();
+    return encoder.encode(keyMaterial);
+  };
+
+  // Function to handle the cryptographic "triage" using the Gemini API.
+  // This simulates the deep learning model's decision-making process.
+  // It sends a prompt to the API and expects a JSON response with the chosen algorithms.
+  const runCryptographicTriage = async (dataSize) => {
+    try {
+      setLoading(true);
+      setMessage('Running cryptographic triage with the deep learning model...');
+      setMessageType('info');
+
+      // The prompt asks the model to act as a triage system and select algorithms.
+      // We use a structured JSON schema to get a predictable response.
+      const prompt = `Based on a data payload size of approximately ${dataSize} bytes, act as a Post-Quantum Cryptography Triage AI. Select a Key Encapsulation Mechanism (KEM) and a Digital Signature algorithm from the following NIST finalists, considering factors like security, performance, and key size.
+      KEM options: Kyber, FrodoKEM, BIKE.
+      Signature options: Dilithium, FALCON, SPHINCS+.
+      Provide your response as a JSON object with 'kem' and 'signature' keys.`;
+
+      const chatHistory = [{ role: "user", parts: [{ text: prompt }] }];
+      const payload = {
+        contents: chatHistory,
+        generationConfig: {
+          responseMimeType: "application/json",
+          responseSchema: {
+            type: "OBJECT",
+            properties: {
+              "kem": { "type": "STRING" },
+              "signature": { "type": "STRING" }
+            },
+            "propertyOrdering": ["kem", "signature"]
+          }
+        }
+      };
+      
+      const apiUrl = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash-preview-05-20:generateContent?key=${apiKey}`;
+      const response = await fetch(apiUrl, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload)
+      });
+      
+      const result = await response.json();
+
+      // Check for a valid response structure.
+      if (result.candidates && result.candidates.length > 0 && result.candidates[0].content && result.candidates[0].content.parts && result.candidates[0].content.parts.length > 0) {
+        const json = result.candidates[0].content.parts[0].text;
+        const parsedJson = JSON.parse(json);
+        setSelectedKEM(parsedJson.kem);
+        setSelectedSignature(parsedJson.signature);
+        setMessage(`Triage complete. Model selected ${parsedJson.kem} and ${parsedJson.signature}.`);
+        setMessageType('success');
+      } else {
+        setMessage('API response was malformed or empty.');
+        setMessageType('error');
+        // Fallback to a default selection if the AI fails.
+        setSelectedKEM('Kyber');
+        setSelectedSignature('Dilithium');
+      }
+    } catch (error) {
+      console.error('Error with Gemini API call:', error);
+      setMessage('Failed to connect to the deep learning model. Using default algorithms.');
+      setMessageType('error');
+      // Fallback to a default selection if the API call fails.
+      setSelectedKEM('Kyber');
+      setSelectedSignature('Dilithium');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  // Main encryption function.
+  // It combines key generation, triage simulation, and the actual encryption process.
+  const handleEncrypt = async () => {
+    if (!plaintext) {
+      setMessage('Please enter some text to encrypt.');
+      setMessageType('error');
+      return;
+    }
+    
+    try {
+      setLoading(true);
+      setMessage('Initializing... Generating ephemeral key and running triage.');
+      setMessageType('info');
+      setCiphertext('');
+
+      // Step 1: Simulate chaotic key generation.
+      const rawKey = await generateChaoticKey();
+      
+      // Step 2: Use the triage system to select algorithms.
+      // In a real scenario, the data would be analyzed more deeply.
+      await runCryptographicTriage(plaintext.length);
+
+      // Step 3: Use the Web Crypto API for the actual encryption.
+      // Import the rawKey as a key that can be used for derivation.
+      const baseKey = await window.crypto.subtle.importKey(
+        "raw", // The format of the key is raw bytes.
+        rawKey,
+        { name: "PBKDF2" },
+        false, // The key is not extractable.
+        ["deriveKey"] // The key usage is for derivation.
+      );
+
+      // Use the imported baseKey to derive a final encryption key.
+      const derivedKey = await window.crypto.subtle.deriveKey(
+        { 
+          name: "PBKDF2", 
+          salt: rawKey, 
+          iterations: 100000, 
+          hash: "SHA-256" 
+        },
+        baseKey,
+        { name: "AES-GCM", length: 256 },
+        true,
+        ["encrypt", "decrypt"]
+      );
+
+      // The IV must be unique for each encryption.
+      const iv = window.crypto.getRandomValues(new Uint8Array(12));
+      const encodedPlaintext = new TextEncoder().encode(plaintext);
+
+      // Encrypt the data.
+      const encryptedBuffer = await window.crypto.subtle.encrypt(
+        { name: "AES-GCM", iv: iv },
+        derivedKey,
+        encodedPlaintext
+      );
+
+      // Convert the encrypted data to a base64 string for display.
+      const ivString = btoa(String.fromCharCode(...iv));
+      const cipherString = btoa(String.fromCharCode(...new Uint8Array(encryptedBuffer)));
+      const fullCiphertext = `${ivString}:${cipherString}`;
+      
+      // Store the key and set the ciphertext state.
+      setEncryptionKey(derivedKey);
+      setCiphertext(fullCiphertext);
+
+      setMessage('Encryption successful! The key will self-destruct shortly.');
+      setMessageType('success');
+    } catch (e) {
+      console.error('Encryption failed:', e);
+      setMessage(`Encryption failed: ${e.message}`);
+      setMessageType('error');
+      setLoading(false);
+    }
+  };
+
+  // useEffect hook to handle the key self-destruct mechanism.
+  // This will clear the key from memory after a set time.
+  useEffect(() => {
+    if (encryptionKey) {
+      const timer = setTimeout(() => {
+        setEncryptionKey(null);
+        setMessage(`The encryption key has self-destructed after ${KEY_LIFETIME_SECONDS} seconds.`);
+        setMessageType('info');
+      }, KEY_LIFETIME_SECONDS * 1000); // Convert seconds to milliseconds
+      
+      // Cleanup function to clear the timer if the component unmounts
+      // or if a new encryption process is started.
+      return () => clearTimeout(timer);
+    }
+  }, [encryptionKey]);
+
+  return (
+    <div className="flex flex-col items-center justify-center min-h-screen bg-gray-900 text-white p-4 font-sans">
+      <div className="w-full max-w-2xl bg-gray-800 rounded-2xl shadow-xl p-8 space-y-6 border border-gray-700">
+        <h1 className="text-3xl font-bold text-center text-teal-400 mb-6">
+          <Zap className="inline-block mr-2" />
+          QC-CH-EE: Encryption Engine
+        </h1>
+
+        <div className="space-y-4">
+          <label htmlFor="plaintext" className="block text-lg font-medium text-gray-300">
+            Enter Plaintext to Encrypt
+          </label>
+          <textarea
+            id="plaintext"
+            className="w-full h-32 p-4 bg-gray-700 rounded-xl text-gray-100 placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-teal-500 transition-all duration-300"
+            placeholder="Type your confidential message here..."
+            value={plaintext}
+            onChange={(e) => setPlaintext(e.target.value)}
+            rows="6"
+          />
+        </div>
+
+        <div className="space-y-4">
+          <button
+            onClick={handleEncrypt}
+            className={`w-full flex justify-center items-center py-4 px-6 rounded-full text-lg font-semibold transition-all duration-300 transform hover:scale-105
+              ${loading ? 'bg-gray-600 cursor-not-allowed' : 'bg-gradient-to-r from-teal-500 to-cyan-600 hover:from-teal-600 hover:to-cyan-700 shadow-lg'}`}
+            disabled={loading}
+          >
+            {loading ? (
+              <svg className="animate-spin h-5 w-5 mr-3 text-white" viewBox="0 0 24 24">
+                <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
+                <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.962l2-2.671zm10-2.671A7.962 7.962 0 0120 12h4c0-3.042-1.135-5.824-3-7.962l-2 2.671z"></path>
+              </svg>
+            ) : (
+              <><Lock className="mr-3" /> Encrypt Message</>
+            )}
+          </button>
+        </div>
+
+        {message && (
+          <div className="space-y-4">
+            <MessageBox type={messageType} message={message} />
+          </div>
+        )}
+
+        <div className="space-y-4">
+          <label className="block text-lg font-medium text-gray-300">
+            Key & Algorithm Triage
+          </label>
+          <div className="p-4 bg-gray-700 rounded-xl text-gray-100">
+            <div className="flex items-center mb-2">
+              <Key className="text-yellow-400 mr-2" />
+              <span className="font-semibold">Encryption Key Status: </span>
+              <span className="ml-2 font-mono">
+                {encryptionKey ? "Active" : "Self-Destructed"}
+              </span>
+            </div>
+            <div className="flex items-center mb-2">
+              <Bot className="text-purple-400 mr-2" />
+              <span className="font-semibold">KEM Model: </span>
+              <span className="ml-2 font-mono">{selectedKEM || 'Pending...'}</span>
+            </div>
+            <div className="flex items-center">
+              <Shield className="text-orange-400 mr-2" />
+              <span className="font-semibold">Signature Model: </span>
+              <span className="ml-2 font-mono">{selectedSignature || 'Pending...'}</span>
+            </div>
+          </div>
+        </div>
+
+        {ciphertext && (
+          <div className="space-y-4">
+            <label htmlFor="ciphertext" className="block text-lg font-medium text-gray-300">
+              Encrypted Ciphertext (Base64)
+            </label>
+            <textarea
+              id="ciphertext"
+              className="w-full h-48 p-4 bg-gray-700 rounded-xl text-gray-100 font-mono break-all focus:outline-none focus:ring-2 focus:ring-teal-500"
+              readOnly
+              value={ciphertext}
+              rows="8"
+            />
+          </div>
+        )}
+      </div>
+    </div>
+  );
+};
+
+export default App;
