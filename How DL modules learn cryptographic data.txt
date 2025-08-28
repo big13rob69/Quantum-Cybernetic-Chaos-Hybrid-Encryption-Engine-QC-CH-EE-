@@ -1,0 +1,6 @@
+How This Works (Step-by-Step Reasoning):
+Dataset Generation: We simulate 5,000 power traces for AES encryption. Each trace is a vector of 50 points, with a Hamming weight leak from the S-box output inserted at index 10, plus noise. This models algorithm performance under a side-channel attack vector, where physical implementation leaks information.
+Model Architecture: A simple multi-layer perceptron (MLP) with one hidden layer classifies the 256 possible S-box outputs.
+Training: Use torch.optim.Adam to optimize the model over 10 epochs with cross-entropy loss. Adam adapts the learning rate for efficient convergence.
+Evaluation: Compute accuracy on a test set to verify the model learned the leakage.
+Attack: Generate new traces, use the model to predict probabilities, and rank key byte guesses by summing log-probabilities. With low noise, the real key (0x2b) typically ranks at the top. This example can be extended to real datasets like DSCAD (for post-quantum crypto like Dilithium) or ASCAD (for AES), which are publicly available for download and loading via NumPy/HDF5.

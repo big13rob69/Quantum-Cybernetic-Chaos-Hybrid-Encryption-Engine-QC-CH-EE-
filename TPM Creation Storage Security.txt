@@ -1,0 +1,4 @@
+Explanation:
+Key Creation: Generates a key derived from the TPM's secure seeds, stored internally. Use for crypto operations without exposing the key.
+NV Storage: For persistent data like keys. Add policies for authorization (e.g., password or PCR-based). For temporary storage, delete the NV area after use via fapi.delete(path).
+Security: Keys/data are bound to the TPM, making them tamper-resistant. Handle exceptions with TSS2_Exception for errors.

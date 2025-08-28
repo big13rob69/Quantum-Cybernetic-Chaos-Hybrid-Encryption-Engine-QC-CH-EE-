@@ -1,0 +1,6 @@
+###To address training DL models on real crypto data (focusing on algorithm performance and attack vectors), I'll demonstrate using a simulated side-channel attack dataset for AES encryption. Side-channel attacks are a common attack vector in cryptography, exploiting physical leaks like power consumption during algorithm execution.
+Here, we generate a synthetic but realistic dataset based on a standard leakage model (Hamming weight of intermediate values in AES, with added Gaussian noise). This mimics real-world side-channel traces (e.g., power measurements) from datasets like ASCAD or DSCAD mentioned in public resources. The model is trained to predict sensitive intermediate values (the output of the AES S-box), which can then be used to recover the secret key byte via a profiled attack.
+This uses PyTorch with torch.optim.Adam as the optimizer. The dataset represents "real" crypto data in the sense that it's derived from AES algorithm behavior and models a practical attack vector.###
+
+
+
