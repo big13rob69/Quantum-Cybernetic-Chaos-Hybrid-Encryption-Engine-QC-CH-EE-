@@ -1,0 +1,8 @@
+Using torch.optim.Adam with a Crypto Dataset
+
+
+To demonstrate the use of PyTorch's Adam optimizer with a cryptography-related dataset, I've created a small synthetic dataset based on real-world data points extracted from reliable sources on AES encryption performance across different hardware and key sizes. This dataset includes features like normalized key size (128, 192, or 256 bits, scaled to [0,1]) and a hardware score (a normalized value where lower scores represent older hardware like Pentium Pro, and higher scores represent modern CPUs with AES-NI acceleration). The label is encryption speed in MB/s, drawn from benchmarks such as:
+Older hardware (e.g., Pentium Pro at ~11 MB/s for AES-128).
+Modern Intel/AMD CPUs with AES-NI (e.g., ~2.3 GB/s for AES-128, ~1.67 GB/s for AES-256 on high-end cores; ~700 MB/s for AES-128 on i7-4750HQ).
+Mid-range or varied benchmarks (e.g., ~50 MB/s in some older studies).
+This represents "algorithm performance" data in cryptography. I trained a simple deep learning neural network (a multi-layer perceptron) to predict encryption speed, using torch.optim.Adam as the optimizer. The model was trained for 1000 epochs with MSE loss.
