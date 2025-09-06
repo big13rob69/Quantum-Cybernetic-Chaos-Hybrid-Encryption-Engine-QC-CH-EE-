@@ -1,0 +1,3 @@
+packages = ["torch", "numpy", "scipy", "matplotlib", "oqs-python", "cryptography"]
+foreach package in packages:
+    execute_command("pip install " + package)

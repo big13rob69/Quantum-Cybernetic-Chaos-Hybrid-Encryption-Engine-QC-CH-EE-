@@ -1,1 +1,0 @@
-pip install torch numpy scipy matplotlib oqs-python cryptography
